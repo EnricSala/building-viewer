@@ -30,9 +30,12 @@ repositories {
 dependencies {
 	compile('org.springframework.boot:spring-boot-starter-actuator')
 	compile('org.springframework.boot:spring-boot-devtools')
-	compile('org.projectlombok:lombok:1.16.6')
 	compile('org.springframework.boot:spring-boot-starter-web')
-	testCompile('org.springframework.boot:spring-boot-starter-test') 
+	compile('org.springframework.boot:spring-boot-configuration-processor')
+	testCompile('org.springframework.boot:spring-boot-starter-test')
+	compile('org.projectlombok:lombok:1.16.6')
+	compile('org.influxdb:influxdb-java:1.5')
+	compile('io.reactivex:rxjava:1.1.0')
 }
 
 
