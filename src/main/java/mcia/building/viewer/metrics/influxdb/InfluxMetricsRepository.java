@@ -42,8 +42,8 @@ public class InfluxMetricsRepository implements MetricsRepository {
 	private Point toSinglePoint(Serie serie) {
 		List<Map<String, Object>> rows = serie.getRows();
 		Map<String, Object> first = rows.get(0);
-		long time = (long) first.get("time");
-		double value = (double) first.get("value");
+		long time = ((Double) first.get("time")).longValue();
+		double value = ((Double) first.get("value")).doubleValue();
 		return new Point(serie.getName(), time, value);
 	}
 
