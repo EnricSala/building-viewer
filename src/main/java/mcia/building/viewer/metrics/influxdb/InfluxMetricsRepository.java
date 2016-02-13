@@ -8,12 +8,15 @@ import org.influxdb.InfluxDB;
 import org.influxdb.dto.Serie;
 
 import lombok.extern.slf4j.Slf4j;
+import mcia.building.viewer.domain.NamedPoint;
 import mcia.building.viewer.domain.Point;
 import mcia.building.viewer.metrics.MetricsRepository;
 import rx.Observable;
 
 @Slf4j
 public class InfluxMetricsRepository implements MetricsRepository {
+
+	private static final String singleQuery = "select time, value from \"%s\"";
 
 	private final InfluxDB influx;
 	private final String database;
@@ -24,31 +27,39 @@ public class InfluxMetricsRepository implements MetricsRepository {
 	}
 
 	@Override
-	public Observable<List<Point>> queryLastPoint(List<String> ids) {
-		log.info("Query last point from: {}", ids);
+	public Observable<Map<String, Point>> queryLastPoint(List<String> ids) {
+		log.debug("Query last point from: {}", ids);
 		return Observable
 				.from(ids)
 				.map(this::cleanMetricId)
-				.map(this::querySerie)
+				.flatMap(this::querySerie)
 				.map(this::toSinglePoint)
-				.toList();
+				.filter(p -> p.getPoint() != null)
+				.toMap(NamedPoint::getId, NamedPoint::getPoint);
 	}
 
-	private Serie querySerie(String id) {
-		List<Serie> series = influx.query(database, "select time, value from " + id, TimeUnit.MILLISECONDS);
-		return series.get(0);
+	private Observable<Serie> querySerie(String serieId) {
+		return Observable
+				.just(serieId)
+				.map(id -> String.format(singleQuery, id))
+				.map(q -> influx.query(database, q, TimeUnit.MILLISECONDS))
+				.flatMap(Observable::from)
+				.first()
+				.onErrorResumeNext(Observable.empty());
 	}
 
-	private Point toSinglePoint(Serie serie) {
-		List<Map<String, Object>> rows = serie.getRows();
-		Map<String, Object> first = rows.get(0);
-		long time = ((Double) first.get("time")).longValue();
-		double value = ((Double) first.get("value")).doubleValue();
-		return new Point(serie.getName(), time, value);
+	private NamedPoint toSinglePoint(Serie serie) {
+		NamedPoint point = new NamedPoint(serie.getName(), null);
+		serie.getRows().stream().findFirst().ifPresent(row -> {
+			long time = ((Double) row.get("time")).longValue();
+			double value = ((Double) row.get("value")).doubleValue();
+			point.setPoint(new Point(time, value));
+		});
+		return point;
 	}
 
 	private String cleanMetricId(String id) {
-		return id.replaceAll("[;()]", "");
+		return id.replaceAll("[^a-zA-Z0-9 \\._-]", "");
 	}
 
 }

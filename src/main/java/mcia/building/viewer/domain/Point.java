@@ -7,8 +7,6 @@ import lombok.Data;
 @AllArgsConstructor
 public class Point {
 
-	private String id;
-
 	private long time;
 
 	private double value;
