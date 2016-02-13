@@ -2,12 +2,21 @@ angular
   .module('app.controllers')
   .controller('MainController', MainController);
 
-function MainController($scope, Metrics) {
+function MainController($scope, Models, Metrics) {
 
-  var metricIds = ['patata', 'catsup'];
+  $scope.model = {};
+  $scope.metrics = {};
 
-  Metrics.current(metricIds).then(function(data) {
-    console.log('Read metrics: ' + JSON.stringify(data));
+  Models.load('gaia-p1').then(function(model) {
+    console.log('Controller loaded model: ' + model.name);
+    $scope.model = model;
+    var metricIds = model.objects.map(function(obj) {
+      return obj.sensorId;
+    });
+    return Metrics.current(metricIds);
+  }).then(function(metrics) {
+    console.log('Controller loaded metrics');
+    $scope.metrics = metrics;
   });
 
 }
