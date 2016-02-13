@@ -5,13 +5,13 @@ angular
 function MetricsService($http) {
 
   return {
-    current: queryCurrentValues
-    history: queryHistoricValues;
+    current: queryCurrentValues,
+    history: queryHistoricValues
   };
 
   function queryCurrentValues(metricIds) {
     var query = {
-      ids: metricIds
+      metricIds: metricIds
     };
     return $http.post('/api/metrics/current', query)
       .then(function(response) {
@@ -25,8 +25,8 @@ function MetricsService($http) {
 
   function queryHistoricValues(metricIds, range) {
     var query = {
-      ids: metricIds,
-      after: range.after;
+      metricIds: metricIds,
+      after: range.after,
       before: range.before
     };
     return $http.post('/api/metrics/historic', query)
