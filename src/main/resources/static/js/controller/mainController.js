@@ -10,13 +10,21 @@ function MainController($scope, Models, Metrics) {
   Models.load('gaia-p1').then(function(model) {
     console.log('Controller loaded model: ' + model.name);
     $scope.model = model;
-    var metricIds = model.objects.map(function(obj) {
-      return obj.sensorId;
-    });
-    return Metrics.current(metricIds);
+    var sensorIds = getSensorIdList(model);
+    return Metrics.current(sensorIds);
   }).then(function(metrics) {
     console.log('Controller loaded metrics');
     $scope.metrics = metrics;
   });
+
+  function getSensorIdList(model) {
+    return model.objects
+      .map(function(obj) {
+        return obj.sensorId;
+      })
+      .filter(function(sensorId) {
+        return sensorId;
+      });
+  }
 
 }
