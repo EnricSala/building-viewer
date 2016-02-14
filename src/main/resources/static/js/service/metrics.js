@@ -16,7 +16,6 @@ function MetricsService($http) {
     return $http.post('/api/metrics/current', query)
       .then(function(response) {
         var metrics = response.data;
-        console.log('Read current metrics: ' + JSON.stringify(metrics));
         return metrics;
       }, function(err) {
         console.log('Error reading current metrics!');
@@ -32,7 +31,6 @@ function MetricsService($http) {
     return $http.post('/api/metrics/historic', query)
       .then(function(response) {
         var metrics = response.data;
-        console.log('Read historic metrics: ' + JSON.stringify(metrics));
         return metrics;
       }, function(err) {
         console.log('Error reading historic metrics!');
@@ -40,3 +38,16 @@ function MetricsService($http) {
   };
 
 }
+
+// "camera": {
+//   "pos": {
+//     "x": 425,
+//     "y": -500,
+//     "z": 700
+//   },
+//   "lookAt": {
+//     "x": 425,
+//     "y": 200,
+//     "z": 0
+//   }
+// }
