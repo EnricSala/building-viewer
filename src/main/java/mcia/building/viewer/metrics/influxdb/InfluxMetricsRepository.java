@@ -16,7 +16,8 @@ import rx.Observable;
 @Slf4j
 public class InfluxMetricsRepository implements MetricsRepository {
 
-	private static final String singleQuery = "select time, value from \"%s\"";
+	private static final String SINGLE_QUERY = "select time, value from \"%s\" limit %d";
+	private static final int SINGLE_QUERY_LIMIT = 1;
 
 	private final InfluxDB influx;
 	private final String database;
@@ -41,7 +42,7 @@ public class InfluxMetricsRepository implements MetricsRepository {
 	private Observable<Serie> querySerie(String serieId) {
 		return Observable
 				.just(serieId)
-				.map(id -> String.format(singleQuery, id))
+				.map(id -> String.format(SINGLE_QUERY, id, SINGLE_QUERY_LIMIT))
 				.map(q -> influx.query(database, q, TimeUnit.MILLISECONDS))
 				.flatMap(Observable::from)
 				.first()
