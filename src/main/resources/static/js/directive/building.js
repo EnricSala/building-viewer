@@ -5,138 +5,199 @@ angular
 function BuildingDirective() {
   return {
     restrict: 'E',
-    link: BuildingDirectiveLink
+    link: BuildingDirectiveLink,
+    scope: {
+      model: '=',
+      metrics: '='
+    }
   };
 }
 
 function BuildingDirectiveLink(scope, element, attrs) {
-  var renderer, scene, camera;
+  var renderer, scene, camera, light;
+  var group, currentBodies;
+  var tempRange = {
+    min: 17,
+    max: 27
+  };
 
   init();
   animate();
+
+  scope.$watch('model', function() {
+    if (scope.model.name) {
+      console.log('Model changed, redrawing: ' + scope.model.name);
+      setCamera(scope.model.camera);
+      redrawModel();
+    }
+  });
+
+  scope.$watch('metrics', function() {
+    if (scope.metrics.points) {
+      console.log('Metrics changed, updating colors');
+      updateColors();
+    }
+  });
 
   function init() {
     var width = window.innerWidth;
     var height = window.innerHeight;
 
     scene = new THREE.Scene();
+    // scene.fog = new THREE.Fog(0x72645b, 600, 10000);
 
-    camera = new THREE.PerspectiveCamera(20, width / height, 0.1, 10000);
-    camera.position.x = 100;
-    camera.position.y = -300;
-    camera.position.z = 400;
-    camera.lookAt({
-      x: camera.position.x,
-      y: 200,
-      z: 0
-    });
+    camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 10000);
 
     renderer = new THREE.WebGLRenderer({
       antialias: true
     });
-    renderer.setClearColor(0xf0f0f0);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(width, height);
 
-    //Add the renderer to the DOM
-    element[0].appendChild(renderer.domElement);
+    renderer.setClearColor(0x222222);
+    // renderer.setClearColor(scene.fog.color);
+    renderer.gammaInput = true;
+    renderer.gammaOutput = true;
 
-    var light = new THREE.DirectionalLight(0xff5050, 1);
-    light.position.set(0.5, 0, 1);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.cullFace = THREE.CullFaceBack;
+
+    // Lights
+    // scene.add(new THREE.HemisphereLight(0xffffbb, 0x080820, 1));
+    scene.add(new THREE.AmbientLight(0x303030));
+
+    light = new THREE.PointLight(0xffff30, 1, 1500, 0.5);
+    light.position.x = -50;
+    light.position.y = -50;
+    light.position.z = 300;
     scene.add(light);
 
-    scene.add(testDrawStuff());
-    scene.add(drawGrid());
+    addShadowedLight(1, 1, 1, 0xffffff, 1.35);
+    addShadowedLight(0.5, 1, -1, 0xffaa00, 1);
+
+    // Add the renderer to the DOM
+    element[0].appendChild(renderer.domElement);
   }
 
   function animate() {
     requestAnimationFrame(animate);
-    render();
-  }
-
-  function render() {
-    // var timer = Date.now() * 0.0001;
-
-    // camera.position.x = Math.cos(timer) * 200;
-    // camera.position.z = Math.sin(timer) * 200;
-    // camera.position.x = 200;
-    // camera.position.y = 200;
-    // camera.position.z = 200;
-    // camera.lookAt(scene.position);
-
     renderer.render(scene, camera);
   }
 
-  //////////////////////////////////////////////////////////////
-  function testDrawStuff() {
-    // var material = new THREE.MeshNormalMaterial({ color: 0x808080 });
-    var material = new THREE.MeshLambertMaterial({
-      color: 0x80808080
-    });
-    var group = new THREE.Group();
-
-    material.opacity = 0.5;
-    material.transparent = true;
-
-    var c1 = new THREE.BoxGeometry(100, 100, 100);
-    var mesh1 = new THREE.Mesh(c1, material);
-    mesh1.position.x = -100;
-    mesh1.position.y = 50;
-    mesh1.position.z = 50;
-    mesh1.matrixAutoUpdate = false;
-    mesh1.updateMatrix();
-    group.add(mesh1);
-
-    var c2 = new THREE.BoxGeometry(50, 50, 50);
-    var mesh2 = new THREE.Mesh(c2, material);
-    mesh2.position.x = 110 + 25;
-    mesh2.position.y = 25;
-    mesh2.position.z = 25;
-    mesh2.matrixAutoUpdate = false;
-    mesh2.updateMatrix();
-    group.add(mesh2);
-
-    var c3 = new THREE.BoxGeometry(50, 50, 50);
-    var mesh3 = new THREE.Mesh(c2, material);
-    mesh3.position.x = 25;
-    mesh3.position.y = 110 + 25;
-    mesh3.position.z = 25;
-    mesh3.matrixAutoUpdate = false;
-    mesh3.updateMatrix();
-    group.add(mesh3);
-
-    var c4 = new THREE.BoxGeometry(50, 50, 50);
-    var mesh4 = new THREE.Mesh(c2, material);
-    mesh4.position.x = 25;
-    mesh4.position.y = 25;
-    mesh4.position.z = 110 + 25;
-    mesh4.matrixAutoUpdate = false;
-    mesh4.updateMatrix();
-    group.add(mesh4);
-
-    return group;
+  function setCamera(config) {
+    camera.position.x = config.pos.x;
+    camera.position.y = config.pos.y;
+    camera.position.z = config.pos.z;
+    camera.lookAt(config.lookAt);
   }
 
-  function drawGrid() {
-    var size = 500;
-    var step = 25;
-
-    var geometry = new THREE.Geometry();
-
-    for (var i = -size; i <= size; i += step) {
-      geometry.vertices.push(new THREE.Vector3(-size, i, 0));
-      geometry.vertices.push(new THREE.Vector3(size, i, 0));
-
-      geometry.vertices.push(new THREE.Vector3(i, -size, 0));
-      geometry.vertices.push(new THREE.Vector3(i, size, 0));
+  function redrawModel() {
+    currentBodies = [];
+    var model = scope.model;
+    if (group) {
+      scene.remove(group);
     }
+    group = new THREE.Group();
+    model.base.forEach(function(obj) {
+      var mesh = drawObject(obj);
+      group.add(mesh);
+      currentBodies.push(mesh);
+    });
+    model.objects.forEach(function(obj) {
+      var mesh = drawObject(obj);
+      group.add(mesh);
+      currentBodies.push(mesh);
+    });
+    scene.add(group);
+  }
 
-    var material = new THREE.LineBasicMaterial({
-      color: 0x000000,
-      opacity: 0.2
+  function drawObject(obj) {
+    var material = new THREE.MeshLambertMaterial({
+      color: new THREE.Color(0.5, 0.5, 0.5),
+      opacity: 1,
+      transparent: true
     });
 
-    return new THREE.LineSegments(geometry, material);
+    var pos = obj.body.pos;
+    var size = obj.body.size;
+
+    var box = new THREE.BoxGeometry(size[0], size[1], size[2]);
+    var mesh = new THREE.Mesh(box, material);
+    mesh.position.x = pos[0] + size[0] / 2;
+    mesh.position.y = pos[1] + size[1] / 2;
+    mesh.position.z = pos[2] + size[2] / 2;
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    mesh.obj = obj;
+
+    return mesh;
+  }
+
+  function updateColors() {
+    if (currentBodies && scope.metrics.points) {
+
+      // Get min anx max values
+      var minTemp = 100;
+      var maxTemp = 0;
+      for (var id in scope.metrics.points) {
+        var point = scope.metrics.points[id];
+        if (point && Number.isFinite(point.value)) {
+          if (point.value < tempRange.min || point.value > tempRange.max) {
+            // Convert to NaN values outside valid range
+            point.value = NaN;
+          } else {
+            // Use the value to calculate the real range
+            minTemp = Math.min(minTemp, point.value);
+            maxTemp = Math.max(maxTemp, point.value);
+          }
+        }
+      }
+      console.log('Temperature range: ' + minTemp + '-' + maxTemp);
+      currentBodies.forEach(function(mesh) {
+        if (mesh.obj) {
+          color = mesh.obj.sensorId ?
+            sensorIdToColor(mesh.obj.sensorId, minTemp, maxTemp) :
+            new THREE.Color(0.5, 0.5, 0.5);
+          mesh.material.color.set(color);
+        }
+      });
+    }
+  }
+
+  function sensorIdToColor(sensorId, min, max) {
+    if (scope.metrics.points) {
+      var point = scope.metrics.points[sensorId];
+      if (point && Number.isFinite(point.value)) {
+        var value = point.value
+        var red = (value - min) / (max - min);
+        return new THREE.Color(red, 0.2, (1 - red) * 0.9 + 0.1);
+      }
+    }
+    return new THREE.Color(0.3, 0.3, 0.3);
+  }
+
+  function addShadowedLight(x, y, z, color, intensity) {
+    var directionalLight = new THREE.DirectionalLight(color, intensity);
+    directionalLight.position.set(x, y, z);
+    scene.add(directionalLight);
+
+    directionalLight.castShadow = true;
+
+    var d = 1;
+    directionalLight.shadowCameraLeft = -d;
+    directionalLight.shadowCameraRight = d;
+    directionalLight.shadowCameraTop = d;
+    directionalLight.shadowCameraBottom = -d;
+
+    directionalLight.shadowCameraNear = 1;
+    directionalLight.shadowCameraFar = 4;
+
+    directionalLight.shadowMapWidth = 1024;
+    directionalLight.shadowMapHeight = 1024;
+
+    directionalLight.shadowBias = -0.005;
   }
 
 }
