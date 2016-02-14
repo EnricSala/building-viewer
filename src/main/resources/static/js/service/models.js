@@ -10,7 +10,7 @@ function ModelsService($http) {
 
   function loadModel(name) {
     var filename = name + '.json';
-    return $http.get('/layers/' + filename)
+    return $http.get('/models/' + filename)
       .then(function(response) {
         var model = response.data;
         console.log('Loaded model: ' + model.name);
