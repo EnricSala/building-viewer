@@ -15,11 +15,13 @@ function BuildingDirective() {
 
 function BuildingDirectiveLink(scope, element, attrs) {
   var renderer, scene, camera, light;
-  var group, currentBodies;
+  var group, colorObjects;
   var tempRange = {
     min: 17,
     max: 27
   };
+  var baseColor = new THREE.Color(0.5, 0.5, 0.5);
+  var defaultColor = new THREE.Color(0.3, 0.3, 0.3);
 
   init();
   animate();
@@ -92,7 +94,7 @@ function BuildingDirectiveLink(scope, element, attrs) {
   }
 
   function redrawModel() {
-    currentBodies = [];
+    colorObjects = [];
     var model = scope.model;
     if (group) {
       scene.remove(group);
@@ -101,19 +103,18 @@ function BuildingDirectiveLink(scope, element, attrs) {
     model.base.forEach(function(obj) {
       var mesh = drawObject(obj);
       group.add(mesh);
-      currentBodies.push(mesh);
     });
     model.objects.forEach(function(obj) {
       var mesh = drawObject(obj);
       group.add(mesh);
-      currentBodies.push(mesh);
+      colorObjects.push(mesh);
     });
     scene.add(group);
   }
 
   function drawObject(obj) {
     var material = new THREE.MeshLambertMaterial({
-      color: new THREE.Color(0.5, 0.5, 0.5),
+      color: baseColor,
       opacity: 1,
       transparent: true
     });
@@ -136,9 +137,7 @@ function BuildingDirectiveLink(scope, element, attrs) {
   }
 
   function updateColors() {
-    if (currentBodies && scope.metrics.points) {
-
-      // Get min anx max values
+    if (colorObjects && scope.metrics.points) {
       var minTemp = 100;
       var maxTemp = 0;
       for (var id in scope.metrics.points) {
@@ -155,11 +154,11 @@ function BuildingDirectiveLink(scope, element, attrs) {
         }
       }
       console.log('Temperature range: ' + minTemp + '-' + maxTemp);
-      currentBodies.forEach(function(mesh) {
+      colorObjects.forEach(function(mesh) {
         if (mesh.obj) {
           color = mesh.obj.sensorId ?
             sensorIdToColor(mesh.obj.sensorId, minTemp, maxTemp) :
-            new THREE.Color(0.5, 0.5, 0.5);
+            defaultColor;
           mesh.material.color.set(color);
         }
       });
@@ -175,7 +174,7 @@ function BuildingDirectiveLink(scope, element, attrs) {
         return new THREE.Color(red, 0.2, (1 - red) * 0.9 + 0.1);
       }
     }
-    return new THREE.Color(0.3, 0.3, 0.3);
+    return defaultColor;
   }
 
   function addShadowedLight(x, y, z, color, intensity) {
