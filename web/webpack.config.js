@@ -199,7 +199,8 @@ module.exports = function makeWebpackConfig() {
     contentBase: './src/public',
     stats: 'minimal',
     proxy: {
-      "/api/*": "http://localhost:8081"
+      "/api/*": "http://localhost:8081",
+      "/models/*": "http://localhost:8081"
     }
   };
 
