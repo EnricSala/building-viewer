@@ -18,15 +18,16 @@ export default class Building {
 }
 
 let camera, scene, renderer;
-const cameraTarget = new THREE.Vector3(425, 5, 248);
+const cameraTarget = new THREE.Vector3(425, 248, -25);
 const baseColor = new THREE.Color(0.5, 0.5, 0.5);
 const defaultColor = new THREE.Color(0.3, 0.3, 0.3);
-const cameraDistance = 800;
+const cameraDistance = 700;
 
 function init(element) {
   // Camera
   camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 1, 10000);
   camera.position.set(0, 0, 0);
+  camera.up = new THREE.Vector3(0, 0, 1);
 
   // Scene
   scene = new THREE.Scene();
@@ -37,15 +38,14 @@ function init(element) {
     new THREE.PlaneBufferGeometry(4000, 4000),
     new THREE.MeshPhongMaterial({ color: 0x999999, specular: 0x101010 })
   );
-  plane.rotation.x = -Math.PI / 2;
-  plane.position.y = -100;
+  plane.position.z = -250;
   plane.receiveShadow = true;
   scene.add(plane);
 
   // Lights
   scene.add(new THREE.HemisphereLight(0x443333, 0x111122));
   addShadowedLight(1, 1, 1, 0xffffff, 1.35);
-  addShadowedLight(0.5, 1, -1, 0xffaa00, 1);
+  addShadowedLight(0.5, -1, 1, 0xffaa00, 1);
 
   // Renderer
   renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -67,10 +67,10 @@ function animate() {
 }
 
 function render() {
-  const timer = Date.now() * 0.0005;
-  camera.position.x = Math.cos(timer) * cameraDistance + 425;
-  camera.position.z = Math.sin(timer) * cameraDistance + 248;
-  camera.position.y = 300;
+  const timer = Date.now() * 0.0002;
+  camera.position.x = Math.cos(timer) * cameraDistance + cameraTarget.x;
+  camera.position.y = Math.sin(timer) * cameraDistance + cameraTarget.y;
+  camera.position.z = 300;
   camera.lookAt(cameraTarget);
   renderer.render(scene, camera);
 }
@@ -109,14 +109,13 @@ function drawObject(obj, opacity) {
     opacity: opacity,
     transparent: true
   };
-
   const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(size[0], size[2], size[1]),
+    new THREE.BoxGeometry(size[0], size[1], size[2]),
     new THREE.MeshLambertMaterial(config)
   );
   mesh.position.x = pos[0] + size[0] / 2;
-  mesh.position.y = pos[2] + size[2] / 2;
-  mesh.position.z = pos[1] + size[1] / 2;
+  mesh.position.y = pos[1] + size[1] / 2;
+  mesh.position.z = pos[2] + size[2] / 2;
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   mesh.wireframe = true;
