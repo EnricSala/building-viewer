@@ -1,7 +1,6 @@
 export default class MainController {
 
   constructor(Models, Metrics) {
-    this.food = 'pizza';
     this.model = {};
     this.metrics = {};
 
@@ -14,7 +13,8 @@ export default class MainController {
           .filter(id => id);
         return Metrics.current(sensorIds);
       })
-      .then(metrics => this.metrics = metrics,
+      .then(
+        metrics => this.metrics = metrics,
         err => console.error(`Init failed: ${err.data}`));
   }
 

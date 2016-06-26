@@ -1,4 +1,5 @@
 import THREE from 'three';
+require('./ext/AMFLoader.js');
 
 export default class Building {
 
@@ -11,51 +12,48 @@ export default class Building {
     init(element);
     animate();
 
-    scope.$watch('model', () => redrawModel(scope.model));
+    scope.$watch('model', () => drawModel(scope.model));
     scope.$watch('metrics', () => applyMetrics(scope.metrics));
   }
 
 }
 
 let camera, scene, renderer;
-const cameraTarget = new THREE.Vector3(425, 248, -25);
+const cameraTarget = new THREE.Vector3(30, 20, -5);
 const baseColor = new THREE.Color(0.5, 0.5, 0.5);
 const defaultColor = new THREE.Color(0.3, 0.3, 0.3);
-const cameraDistance = 700;
+const cameraDistance = 50;
 
 function init(element) {
-  // Camera
-  camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 1, 10000);
-  camera.position.set(0, 0, 0);
-  camera.up = new THREE.Vector3(0, 0, 1);
-
   // Scene
   scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x72645b, 1000, 150000);
+
+  // Camera
+  camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 1, 500);
+  camera.up.set(0, 0, 1);
+  scene.add(camera);
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0x999999));
+  camera.add(new THREE.PointLight(0xffffff, 0.6));
+  addShadowedLight(10, 0, 10, 0xffaa00, 0.3);
 
   // Ground
   const plane = new THREE.Mesh(
-    new THREE.PlaneBufferGeometry(4000, 4000),
-    new THREE.MeshPhongMaterial({ color: 0x999999, specular: 0x101010 })
+    new THREE.PlaneBufferGeometry(1000, 1000),
+    new THREE.MeshPhongMaterial({ color: 0xADD8E6, specular: 0x101010 })
   );
-  plane.position.z = -250;
-  plane.receiveShadow = true;
+  plane.position.z = -5;
+  plane.receiveShadow = false;
   scene.add(plane);
-
-  // Lights
-  scene.add(new THREE.HemisphereLight(0x443333, 0x111122));
-  addShadowedLight(1, 1, 1, 0xffffff, 1.35);
-  addShadowedLight(0.5, -1, 1, 0xffaa00, 1);
 
   // Renderer
   renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setClearColor(scene.fog.color);
+  renderer.setClearColor(0x999999);
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.gammaInput = true;
   renderer.gammaOutput = true;
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.renderReverseSided = false;
 
   // Add the renderer to the DOM
   element[0].appendChild(renderer.domElement);
@@ -70,7 +68,7 @@ function render() {
   const timer = Date.now() * 0.0002;
   camera.position.x = Math.cos(timer) * cameraDistance + cameraTarget.x;
   camera.position.y = Math.sin(timer) * cameraDistance + cameraTarget.y;
-  camera.position.z = 300;
+  camera.position.z = 15;
   camera.lookAt(cameraTarget);
   renderer.render(scene, camera);
 }
@@ -92,35 +90,18 @@ function addShadowedLight(x, y, z, color, intensity) {
   scene.add(directionalLight);
 }
 
-function redrawModel(model) {
+function drawModel(model) {
   if (!model.name) return;
   console.log('Redrawing model: ' + model.name);
-  const group = new THREE.Group();
-  model.base.forEach(obj => group.add(drawObject(obj, 1)));
-  model.objects.forEach(obj => group.add(drawObject(obj, 0.7)));
-  scene.add(group);
+
+  const loader = new THREE.AMFLoader();
+  loader.load(`./models/${model.file}`, amfModel => {
+    scene.add(amfModel);
+  });
 }
 
-function drawObject(obj, opacity) {
-  const pos = obj.body.pos;
-  const size = obj.body.size;
-  const config = {
-    color: baseColor,
-    opacity: opacity,
-    transparent: true
-  };
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(size[0], size[1], size[2]),
-    new THREE.MeshLambertMaterial(config)
-  );
-  mesh.position.x = pos[0] + size[0] / 2;
-  mesh.position.y = pos[1] + size[1] / 2;
-  mesh.position.z = pos[2] + size[2] / 2;
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  mesh.wireframe = true;
-  mesh.obj = obj;
-  return mesh;
+function findByName(model, name) {
+  return model.children.filter(it => it.name === name)[0];
 }
 
 function applyMetrics(metrics) {
