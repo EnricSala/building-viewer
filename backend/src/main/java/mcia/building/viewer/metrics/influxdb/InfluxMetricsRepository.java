@@ -2,6 +2,7 @@ package mcia.building.viewer.metrics.influxdb;
 
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.concurrent.TimeUnit;
 
 import org.influxdb.InfluxDB;
@@ -16,9 +17,6 @@ import rx.Observable;
 @Slf4j
 public class InfluxMetricsRepository implements MetricsRepository {
 
-	private static final String SINGLE_QUERY = "select time, value from \"%s\" limit %d";
-	private static final int SINGLE_QUERY_LIMIT = 1;
-
 	private final InfluxDB influx;
 	private final String database;
 
@@ -29,31 +27,31 @@ public class InfluxMetricsRepository implements MetricsRepository {
 
 	@Override
 	public Observable<Map<String, Point>> queryLastPoint(List<String> ids) {
-		log.debug("Query last point from: {}", ids);
-		return Observable
-				.from(ids)
-				.map(this::cleanMetricId)
-				.flatMap(this::querySerie)
+		log.debug("Query last point from {} series", ids.size());
+		return buildQuery(ids)
+				.doOnNext(query -> log.debug("Influx query: {}", query))
+				.map(query -> influx.query(database, query, TimeUnit.MILLISECONDS))
+				.flatMapIterable(it -> it)
 				.map(this::toSinglePoint)
 				.filter(p -> p.getPoint() != null)
 				.toMap(NamedPoint::getId, NamedPoint::getPoint);
 	}
 
-	private Observable<Serie> querySerie(String serieId) {
+	private Observable<String> buildQuery(List<String> ids) {
+		final String prefix = "select time, value from ";
+		final String sufix = " limit 1";
 		return Observable
-				.just(serieId)
-				.map(id -> String.format(SINGLE_QUERY, id, SINGLE_QUERY_LIMIT))
-				.map(q -> influx.query(database, q, TimeUnit.MILLISECONDS))
-				.flatMap(Observable::from)
-				.first()
-				.onErrorResumeNext(Observable.empty());
+				.from(ids)
+				.map(this::cleanMetricId)
+				.reduce(new StringJoiner(", ", prefix, sufix), StringJoiner::add)
+				.map(StringJoiner::toString);
 	}
 
 	private NamedPoint toSinglePoint(Serie serie) {
 		NamedPoint point = new NamedPoint(serie.getName(), null);
 		serie.getRows().stream().findFirst().ifPresent(row -> {
 			long time = ((Double) row.get("time")).longValue();
-			double value = ((Double) row.get("value")).doubleValue();
+			double value = (Double) row.get("value");
 			point.setPoint(new Point(time, value));
 		});
 		return point;

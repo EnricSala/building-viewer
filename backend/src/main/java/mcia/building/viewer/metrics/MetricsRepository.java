@@ -8,6 +8,6 @@ import rx.Observable;
 
 public interface MetricsRepository {
 
-	public Observable<Map<String, Point>> queryLastPoint(List<String> ids);
+	Observable<Map<String, Point>> queryLastPoint(List<String> ids);
 
 }
