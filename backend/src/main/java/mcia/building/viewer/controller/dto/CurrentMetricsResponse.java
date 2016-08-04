@@ -1,10 +1,10 @@
 package mcia.building.viewer.controller.dto;
 
-import java.util.Map;
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import mcia.building.viewer.domain.Point;
+
+import java.util.Map;
 
 @Data
 @AllArgsConstructor

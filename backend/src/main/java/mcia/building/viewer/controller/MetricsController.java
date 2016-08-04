@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import rx.Observable;
 
+import javax.validation.Valid;
+
 @RestController
 @RequestMapping("/api/metrics")
 @RequiredArgsConstructor
@@ -21,9 +23,10 @@ public class MetricsController {
 
 	@PostMapping("/current")
 	public Observable<CurrentMetricsResponse> currentMetrics(
-			@RequestBody CurrentMetricsRequest request) {
+			@Valid @RequestBody CurrentMetricsRequest request) {
 
-		log.info("POST /metrics/current to read {}", request);
+		int count = request.getMetricIds().size();
+		log.info("POST /metrics/current to read {} series", count);
 		return metricsRepository
 				.queryLastPoint(request.getMetricIds())
 				.map(CurrentMetricsResponse::new);
