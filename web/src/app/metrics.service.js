@@ -1,4 +1,4 @@
-export default class Metrics {
+class Metrics {
 
   constructor($http) {
     this.$http = $http;
@@ -11,3 +11,6 @@ export default class Metrics {
   }
 
 }
+
+Metrics.$inject = ['$http'];
+export default Metrics;

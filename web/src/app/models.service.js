@@ -1,4 +1,4 @@
-export default class Models {
+class Models {
 
   constructor($http) {
     this.$http = $http;
@@ -13,6 +13,9 @@ export default class Models {
         console.log(`Loaded model with name: ${model.name}`);
         return model;
       });
-  };
+  }
 
 }
+
+Models.$inject = ['$http'];
+export default Models;

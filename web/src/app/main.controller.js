@@ -1,21 +1,19 @@
-export default class MainController {
+class MainController {
 
-  constructor(Models, Metrics) {
+  constructor(Models) {
+    this.Models = Models;
     this.model = {};
-    this.metrics = {};
+  }
 
-    Models.load('gaia-p1')
+  $onInit() {
+    this.Models.load('gaia-p1')
       .then(model => {
-        console.log('Loaded model');
+        console.log(`Loaded model: ${model.name}`);
         this.model = model;
-        const sensorIds = model.objects
-          .map(obj => obj.sensorId)
-          .filter(id => id);
-        return Metrics.current(sensorIds);
-      })
-      .then(
-        metrics => this.metrics = metrics,
-        err => console.error(`Init failed: ${err.data}`));
+      });
   }
 
 }
+
+MainController.$inject = ['Models'];
+export default MainController;
