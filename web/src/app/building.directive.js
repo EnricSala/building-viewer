@@ -255,5 +255,5 @@ function metricToColor(point, min, max) {
   return new THREE.Color(0.3, 0.3, 0.3);
 }
 
-Building.$inject = ['Metrics'];
+Building.prototype.controller.$inject = ['Metrics'];
 export default Building;
