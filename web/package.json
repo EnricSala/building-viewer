@@ -18,6 +18,8 @@
   "homepage": "https://github.com/enric-sinh/building-viewer",
   "dependencies": {
     "angular": "^1.5.7",
+    "moment": "^2.17.1",
+    "rainbowvis.js": "^1.0.1",
     "three": "^0.78.0"
   },
   "devDependencies": {

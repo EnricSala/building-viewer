@@ -2,6 +2,7 @@ import angular from 'angular';
 
 import MainController from './main.controller.js';
 import Metrics from './metrics.service.js';
+import Colors from './colors.service.js';
 import Models from './models.service.js';
 import Building from './building.directive.js';
 
@@ -13,6 +14,7 @@ angular
   .module(MODULE_NAME, [])
   .service('Models', Models)
   .service('Metrics', Metrics)
+  .service('Colors', Colors)
   .directive('building', () => new Building)
   .directive('app', () => ({
     template: require('./app.html'),
