@@ -41,7 +41,9 @@ public class InfluxMetricsRepository implements MetricsRepository {
 		final String sufix = "\" limit 1";
 		return Observable
 				.from(ids)
+				.filter(this::isValidMetricId)
 				.map(this::cleanMetricId)
+				.filter(this::isValidMetricId)
 				.reduce(new StringJoiner("\", \"", prefix, sufix), StringJoiner::add)
 				.map(StringJoiner::toString);
 	}
@@ -58,6 +60,10 @@ public class InfluxMetricsRepository implements MetricsRepository {
 
 	private String cleanMetricId(String id) {
 		return id.replaceAll("[^a-zA-Z0-9 \\._-]", "");
+	}
+
+	private boolean isValidMetricId(String id) {
+		return id != null && !id.isEmpty();
 	}
 
 }
