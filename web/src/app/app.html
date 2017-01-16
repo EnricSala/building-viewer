@@ -1,1 +1,29 @@
 <building model="app.model" metrics="app.metrics"></building>
+
+<div id="overlay">
+
+  <div id="title">
+    <h1>Edifici Gaia TR14</h1>
+    <hr>
+    <h2>{{ app.clock}} - Dades en Temps Real</h2>
+  </div>
+
+  <div id="legend">
+    <h1>Temperatura</h1>
+    <hr>
+    <table>
+      <tbody>
+        <tr>
+          <td>
+            <h1>{{ app.colors.min }}</h1>
+          </td>
+          <td ng-repeat="item in app.colors" ng-style="item.style" class="legend-item"></td>
+          <td>
+            <h1>{{ app.colors.max }}ºC</h1>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
