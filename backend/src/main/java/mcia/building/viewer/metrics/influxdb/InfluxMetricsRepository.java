@@ -44,6 +44,7 @@ public class InfluxMetricsRepository implements MetricsRepository {
 				.filter(this::isValidMetricId)
 				.map(this::cleanMetricId)
 				.filter(this::isValidMetricId)
+				.distinct()
 				.reduce(new StringJoiner("\", \"", prefix, sufix), StringJoiner::add)
 				.map(StringJoiner::toString);
 	}
