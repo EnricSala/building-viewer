@@ -12,32 +12,42 @@ class MainController {
   $onInit() {
     this.Models.load('gaia').then(model => {
       console.log(`Loaded model: ${model.name}`);
+      this.model = model;
 
       // Create color gradients
       for (let prop in model.sensors) {
         let s = model.sensors[prop];
         this.Colors.create(prop, s.min, s.max, s.spectrum);
       }
-      const min = model.sensors['temperature'].min;
-      const max = model.sensors['temperature'].max;
-      const temperatureColors = [];
-      for (let i = Math.floor(min); i <= Math.ceil(max); i++) {
-        const colorStr = this.Colors.getRainbow('temperature').colorAt(i);
-        temperatureColors.push({
-          val: i,
-          style: { 'background-color': `#${colorStr}` }
-        });
-      }
-      this.colors = temperatureColors;
-      this.colors.min = min;
-      this.colors.max = max;
-      this.model = model;
+
+      // Configure the legend
+      this.configureLegendFor('temperature');
     });
 
     // Add clock
     const updateClock = () => this.clock = moment().format('HH:mm');
     updateClock();
     this.$interval(updateClock, 1000);
+  }
+
+  configureLegendFor(sensor) {
+    const config = this.model.sensors[sensor];
+    const rainbow = this.Colors.getRainbow(sensor);
+
+    const min = Math.floor(config.min);
+    const max = Math.ceil(config.max);
+    const colors = [];
+    for (let i = min; i <= max; i++) {
+      const colorStr = '#' + rainbow.colorAt(i);
+      colors.push({ val: i, style: { 'background-color': colorStr } });
+    }
+
+    this.legend = {};
+    this.legend.colors = colors;
+    this.legend.label = config.label;
+    this.legend.units = config.units;
+    this.legend.max = min;
+    this.legend.min = max;
   }
 
 }
