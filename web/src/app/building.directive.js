@@ -18,35 +18,42 @@ class Building {
     scope.$watch('model', () => drawModel(scope.model));
   }
 
-  controller(Metrics) {
+  controller(Metrics, Colors) {
     console.log("Starting Controller for Building directive");
     metricsService = Metrics;
+    colorsService = Colors;
   }
 
 }
 
-let metricsService;
-let sky, sunSphere;
+let metricsService, colorsService;
 let camera, scene, renderer;
-let dirLight;
-const cameraTarget = new THREE.Vector3(29.8, -5, -17.5);
-const cameraDistance = 60;
+let dirLight, hemiLight;
+let sky, sunSphere;
+
+const buildingX = 29.8 * 2;
+const buildingZ = 17.5 * 2;
+
+const cameraTarget = new THREE.Vector3(buildingX / 2, 12, -buildingZ / 2);
+let cameraDistance = 60;
+let cameraDistanceX = cameraDistance;
+let cameraDistanceZ = cameraDistance;
+
+const defaultColor = new THREE.Color(0.7, 0.7, 0.7);
+const structureColor = new THREE.Color(0.5, 0.5, 0.5);
 
 function init(element) {
   // Scene
   scene = new THREE.Scene();
 
-  // Fog
-  // scene.fog = new THREE.Fog(0xffffff, 1, 5000);
-  // scene.fog.color.setHSL(0.6, 0, 1);
-
   // Camera
-  camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 10, 2000000);
+  const aspectRatio = window.innerWidth / window.innerHeight;
+  camera = new THREE.PerspectiveCamera(40, aspectRatio, 10, 2000000);
   camera.up.set(0, 1, 0);
   scene.add(camera);
 
   // Hemisphere light
-  let hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.4);
+  hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.4);
   hemiLight.color.setRGB(0.1, 0.1, 0.1);
   hemiLight.groundColor.setRGB(1, 1, 1);
   hemiLight.position.set(0, 0, 0);
@@ -69,16 +76,6 @@ function init(element) {
   dirLight.shadowBias = -0.0001;
   dirLight.shadowCameraVisible = true;
   scene.add(dirLight);
-
-  // Ground
-  // let groundGeo = new THREE.PlaneBufferGeometry(200, 200);
-  // let groundMat = new THREE.MeshPhongMaterial({ color: 0xffffff, specular: 0x050505 });
-  // groundMat.color.setHSL(0.095, 1, 0.75);
-  // let ground = new THREE.Mesh(groundGeo, groundMat);
-  // ground.rotation.x = -Math.PI / 2;
-  // ground.position.y = -5;
-  // ground.receiveShadow = true;
-  // scene.add(ground);
 
   // Renderer
   renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -119,7 +116,7 @@ function initSky() {
     mieDirectionalG: 0.8,
     luminance: 1,
     inclination: 0.1, // elevation / inclination
-    azimuth: 0.2, // Facing front,
+    azimuth: 0.2, // Facing front
     sun: true
   };
   var distance = 400000;
@@ -152,6 +149,7 @@ function initSky() {
   }
 
   var gui = new dat.GUI();
+  gui.close();
   gui.add(effectController, "turbidity", 1.0, 20.0, 0.1).onChange(guiChanged);
   gui.add(effectController, "reileigh", 0.0, 4, 0.001).onChange(guiChanged);
   gui.add(effectController, "mieCoefficient", 0.0, 0.1, 0.001).onChange(guiChanged);
@@ -169,12 +167,23 @@ function animate() {
 }
 
 function render() {
-  const timer = Date.now() * 0.0002;
-  camera.position.x = Math.cos(timer) * cameraDistance + cameraTarget.x;
-  camera.position.z = Math.sin(timer) * cameraDistance + cameraTarget.z;
-  camera.position.y = 15;
-  camera.lookAt(cameraTarget);
+  const timer = -Date.now() * 0.0002;
+  camera.position.x = Math.cos(timer) * cameraDistanceX + cameraTarget.x;
+  camera.position.z = Math.sin(timer) * cameraDistanceZ + cameraTarget.z;
+  updateViewPoint();
   renderer.render(scene, camera);
+}
+
+function updateViewPoint() {
+  const currentFloor = 1;
+  const floorHeight = 4;
+  cameraDistanceX = currentFloor > 1 ? 50 : 60;
+  cameraDistanceZ = currentFloor > 1 ? 50 : 60;
+  cameraTarget.x = currentFloor > 1 ? buildingX / 2 - 3.5 : buildingX / 2;
+  cameraTarget.y = floorHeight * (currentFloor - 1);
+  cameraTarget.z = currentFloor > 1 ? -27.5 : -buildingZ / 2;
+  camera.position.y = cameraTarget.y + floorHeight * 4 + 4;
+  camera.lookAt(cameraTarget);
 }
 
 function drawModel(model) {
@@ -192,37 +201,53 @@ function drawModel(model) {
     amfModel.children.forEach(part => {
       part.children.forEach(body => {
         body.material.transparent = true;
-        body.material.opacity = 0.35;
-        body.material.color.setRGB(0.7, 0.7, 0.7);
+        body.material.opacity = 0.2;
+        body.material.color.set(defaultColor);
       });
     });
 
-    // Configure the floor
-    const floor = findByName(amfModel, 'estructura_terra_1');
-    floor.children.forEach(body => {
-      body.transparent = false;
+    // Configure the base
+    const base = findByName(amfModel, 'contorn_N1');
+    base.children.forEach(body => {
+      body.material.transparent = true;
       body.material.opacity = 1;
-      body.material.color.setRGB(0.5, 0.5, 0.5);
+      body.material.color.set(structureColor);
     });
 
-    doMetrics(model, amfModel);
+    // Configure the structure
+    const floors = findByRegex(amfModel, /^estructura_terra/);
+    floors.forEach(part => {
+      part.children.forEach(body => {
+        body.material.transparent = true;
+        body.material.opacity = 1;
+        body.material.color.set(structureColor);
+      });
+    });
+
+    // Use metrics to color parts of the model
+    colorUsingSensor(model, amfModel, 'temperature');
+    colorUsingSensor(model, amfModel, 'solar');
   });
 }
 
-function findByName(model, name) {
-  return model.children.filter(it => it.name === name)[0];
+function findByName(amfModel, name) {
+  return amfModel.children.filter(it => it.name === name)[0];
 }
 
-function loadMetrics(model, sensor) {
-  let metricIds = model.objects.map(obj => obj.sensors[sensor]);
+function findByRegex(amfModel, expression) {
+  return amfModel.children.filter(it => expression.test(it.name));
+}
+
+function loadMetrics(amfModel, sensor) {
+  let metricIds = amfModel.objects.map(obj => obj.sensors[sensor]);
   return metricsService.current(metricIds);
 }
 
-function doMetrics(model, amfModel) {
-  loadMetrics(model, 'temperature').then(
+function colorUsingSensor(model, amfModel, sensor) {
+  loadMetrics(model, sensor).then(
     metrics => {
       console.log(`Loaded metrics: ${JSON.stringify(metrics)}`);
-      applyMetrics(model, amfModel, metrics);
+      applyMetrics(model, amfModel, sensor, metrics);
     },
     err => {
       console.error(`Error loading current metrics: ${err.data.message}`);
@@ -230,30 +255,29 @@ function doMetrics(model, amfModel) {
   );
 }
 
-function applyMetrics(model, amfModel, metrics) {
+function applyMetrics(model, amfModel, sensor, metrics) {
   if (!metrics.points) return;
-  console.log('Applying metrics');
-
+  console.log(`Applying ${sensor} metrics`);
   model.objects.forEach(obj => {
-    console.log(`Coloring: ${obj.label}, with PartId: ${obj.partId}`);
     const part = findByName(amfModel, obj.partId);
     part.children.forEach(body => {
-      const point = metrics.points[obj.sensors.temperature];
-      const color = metricToColor(point, 23, 28);
-      body.material.opacity = 0.7;
-      body.material.color.set(color);
+      const point = metrics.points[obj.sensors[sensor]];
+      if (point) {
+        const color = metricToColor(sensor, point.value, 23, 28);
+        body.material.opacity = 0.80;
+        body.material.color.set(color);
+      }
     });
   });
 }
 
-function metricToColor(point, min, max) {
-  const value = point.value;
+function metricToColor(sensor, value, min, max) {
   if (Number.isFinite(value)) {
-    const red = (value - min) / (max - min);
-    return new THREE.Color(red * 0.9 + 0.1, 0.2, (1 - red) * 0.9 + 0.1)
+    let color = colorsService.getRainbow(sensor).colorAt(value);
+    return new THREE.Color(parseInt(color, 16));
   }
-  return new THREE.Color(0.3, 0.3, 0.3);
+  return defaultColor;
 }
 
-Building.prototype.controller.$inject = ['Metrics'];
+Building.prototype.controller.$inject = ['Metrics', 'Colors'];
 export default Building;
