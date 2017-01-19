@@ -46,8 +46,8 @@ class MainController {
     this.legend.colors = colors;
     this.legend.label = config.label;
     this.legend.units = config.units;
-    this.legend.max = min;
-    this.legend.min = max;
+    this.legend.max = max;
+    this.legend.min = min;
   }
 
 }
