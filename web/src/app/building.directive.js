@@ -1,4 +1,5 @@
 import THREE from 'three';
+import TWEEN from 'tween.js';
 
 require('./ext/AMFLoader.js');
 require('./ext/SkyShader.js');
@@ -164,6 +165,7 @@ function initSky() {
 function animate() {
   requestAnimationFrame(animate);
   render();
+  TWEEN.update();
 }
 
 function render() {
@@ -227,6 +229,34 @@ function drawModel(model) {
     // Use metrics to color parts of the model
     colorUsingSensor(model, amfModel, 'temperature');
     colorUsingSensor(model, amfModel, 'solar');
+
+    // Get reference to objects for animation
+    const elevator = findByName(amfModel, 'ascensor_0');
+    elevator.children.forEach(body => {
+      body.material.opacity = 0.9;
+      body.material.color.set(defaultColor);
+    });
+
+    // Define elevator animations
+    const goP1 = new TWEEN.Tween(elevator.position)
+      .to({ z: 12 }, 2000)
+      .easing(TWEEN.Easing.Quadratic.InOut);
+    const goP2 = new TWEEN.Tween(elevator.position)
+      .to({ z: 8 }, 2000)
+      .easing(TWEEN.Easing.Quadratic.InOut);
+    const goP3 = new TWEEN.Tween(elevator.position)
+      .to({ z: 16.1 }, 2000)
+      .easing(TWEEN.Easing.Quadratic.InOut);
+    const goP0 = new TWEEN.Tween(elevator.position)
+      .to({ z: 0 }, 2000)
+      .easing(TWEEN.Easing.Quadratic.InOut)
+      .start();
+
+    // Chain elevator animations in infinite loop
+    goP0.chain(goP1);
+    goP1.chain(goP2);
+    goP2.chain(goP3);
+    goP3.chain(goP0);
   });
 }
 
