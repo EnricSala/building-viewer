@@ -1,5 +1,6 @@
 import THREE from 'three';
 import TWEEN from 'tween.js';
+import SunCalc from 'suncalc';
 
 require('./ext/AMFLoader.js');
 require('./ext/SkyShader.js');
@@ -42,6 +43,10 @@ let cameraDistanceZ = cameraDistance;
 
 const defaultColor = new THREE.Color(0.7, 0.7, 0.7);
 const structureColor = new THREE.Color(0.5, 0.5, 0.5);
+
+// Sample coordinates to calculate Sun position
+const SUN_LAT = 41.562533;
+const SUN_LNG = 2.020699;
 
 function init(element) {
   // Scene
@@ -131,13 +136,17 @@ function initSky() {
     uniforms.mieDirectionalG.value = effectController.mieDirectionalG;
     var theta = Math.PI * (effectController.inclination - 0.5);
     var phi = 2 * Math.PI * (effectController.azimuth - 0.5);
+
+    updateSkyPosition(theta, phi);
+    updateSunlight();
+  }
+
+  function updateSkyPosition(phi, theta) {
     sunSphere.position.x = distance * Math.cos(phi);
     sunSphere.position.y = distance * Math.sin(phi) * Math.sin(theta);
     sunSphere.position.z = distance * Math.sin(phi) * Math.cos(theta);
     sunSphere.visible = effectController.sun;
     sky.uniforms.sunPosition.value.copy(sunSphere.position);
-    renderer.render(scene, camera);
-    updateSunlight();
   }
 
   function updateSunlight() {
@@ -160,6 +169,15 @@ function initSky() {
   gui.add(effectController, "azimuth", 0, 1, 0.0001).onChange(guiChanged);
   gui.add(effectController, "sun").onChange(guiChanged);
   guiChanged();
+
+  // Update sun position
+  const time = new Date();
+  const sunPosition = SunCalc.getPosition(time, SUN_LAT, SUN_LNG);
+  const inclination = sunPosition.altitude;
+  const azimuth = sunPosition.azimuth + Math.PI / 2;
+  console.log(`Sun incl/az is: ${inclination} / ${azimuth}`);
+  updateSkyPosition(inclination, azimuth);
+  updateSunlight();
 }
 
 function animate() {
