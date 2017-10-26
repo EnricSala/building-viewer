@@ -2,6 +2,8 @@ import THREE from 'three';
 import TWEEN from 'tween.js';
 import SunCalc from 'suncalc';
 
+import Elevator from './elevator.js';
+
 require('./ext/AMFLoader.js');
 require('./ext/SkyShader.js');
 
@@ -35,18 +37,33 @@ let sky, sunSphere;
 
 const buildingX = 29.8 * 2;
 const buildingZ = 17.5 * 2;
+const floorHeight = 4;
 
 const cameraTarget = new THREE.Vector3(buildingX / 2, 12, -buildingZ / 2);
 let cameraDistance = 60;
 let cameraDistanceX = cameraDistance;
 let cameraDistanceZ = cameraDistance;
+const cameraOffset = new THREE.Vector3(0, 0, 0);
+const cameraTargetOffset = new THREE.Vector3(0, 0, 0);
 
 const defaultColor = new THREE.Color(0.7, 0.7, 0.7);
 const structureColor = new THREE.Color(0.5, 0.5, 0.5);
+const platformColor = new THREE.Color(0.7, 0.6, 0.5);
+const blueStructureColor = new THREE.Color(0.5, 0.6, 0.8);
 
 // Sample coordinates to calculate Sun position
 const SUN_LAT = 41.562533;
 const SUN_LNG = 2.020699;
+
+// Element groups by floor
+let floorElementList;
+
+// Store opacities before animation
+const DEFAULT_OPACITY = 0
+let originalProperties;
+
+// Elevator controller
+let elevator;
 
 function init(element) {
   // Scene
@@ -188,21 +205,20 @@ function animate() {
 
 function render() {
   const timer = -Date.now() * 0.0002;
-  camera.position.x = Math.cos(timer) * cameraDistanceX + cameraTarget.x;
-  camera.position.z = Math.sin(timer) * cameraDistanceZ + cameraTarget.z;
+  camera.position.x = Math.cos(timer) * cameraDistanceX + cameraTarget.x + cameraOffset.x;
+  camera.position.z = Math.sin(timer) * cameraDistanceZ + cameraTarget.z + cameraOffset.z;
   updateViewPoint();
   renderer.render(scene, camera);
 }
 
 function updateViewPoint() {
-  const currentFloor = 1;
-  const floorHeight = 4;
-  cameraDistanceX = currentFloor > 1 ? 50 : 60;
-  cameraDistanceZ = currentFloor > 1 ? 50 : 60;
-  cameraTarget.x = currentFloor > 1 ? buildingX / 2 - 3.5 : buildingX / 2;
-  cameraTarget.y = floorHeight * (currentFloor - 1);
-  cameraTarget.z = currentFloor > 1 ? -27.5 : -buildingZ / 2;
-  camera.position.y = cameraTarget.y + floorHeight * 4 + 4;
+  const floor = 1;
+  cameraDistanceX = floor > 1 ? 50 : 60;
+  cameraDistanceZ = floor > 1 ? 50 : 60;
+  cameraTarget.x = floor > 1 ? buildingX / 2 - 3.5 : buildingX / 2 + cameraTargetOffset.x;
+  cameraTarget.y = floorHeight * (floor - 1) + cameraTargetOffset.y;
+  cameraTarget.z = floor > 1 ? -27.5 : -buildingZ / 2 + cameraTargetOffset.z;
+  camera.position.y = cameraTarget.y + floorHeight * 4 + 4 + cameraOffset.y;
   camera.lookAt(cameraTarget);
 }
 
@@ -221,7 +237,7 @@ function drawModel(model) {
     amfModel.children.forEach(part => {
       part.children.forEach(body => {
         body.material.transparent = true;
-        body.material.opacity = 0.2;
+        body.material.opacity = 1;
         body.material.color.set(defaultColor);
       });
     });
@@ -229,52 +245,67 @@ function drawModel(model) {
     // Configure the base
     const base = findByName(amfModel, 'contorn_N1');
     base.children.forEach(body => {
-      body.material.transparent = true;
       body.material.opacity = 1;
-      body.material.color.set(structureColor);
+      body.material.color.set(platformColor);
     });
 
     // Configure the structure
-    const floors = findByRegex(amfModel, /^estructura_terra/);
-    floors.forEach(part => {
+    const structures = findByRegex(amfModel, /^estructura_terra/);
+    structures.forEach(part => {
       part.children.forEach(body => {
-        body.material.transparent = true;
         body.material.opacity = 1;
         body.material.color.set(structureColor);
       });
     });
 
+    // blueStructureColor = new THREE.Color(0.5, 0.6, 0.8);
+    const blueStructures = [
+      findByName(amfModel, 'tancaments_0_1'),
+      findByName(amfModel, 'tancaments_1_10')
+    ];
+    blueStructures.forEach(part => {
+      part.children.forEach(body => {
+        body.material.color.set(blueStructureColor);
+      });
+    });
+
+    // Rename the impulsion/return pumps
+    console.log(amfModel.children.map(it => it.name))
+    findByRegex(amfModel, /^climatitzacio_4_imp_/)
+      .forEach((part, idx) => part.name = part.name + (idx + 1));
+    findByRegex(amfModel, /^climatitzacio_4_ret_/)
+      .forEach((part, idx) => part.name = part.name + (idx + 1));
+    console.log(amfModel.children.map(it => it.name))
+
     // Use metrics to color parts of the model
     colorUsingSensor(model, amfModel, 'temperature');
     colorUsingSensor(model, amfModel, 'solar');
 
-    // Get reference to objects for animation
-    const elevator = findByName(amfModel, 'ascensor_0');
-    elevator.children.forEach(body => {
-      body.material.opacity = 0.9;
-      body.material.color.set(defaultColor);
-    });
+    // Configure the elevator
+    const floors = [
+      { floor: 0, z: 0 },
+      { floor: 1, z: 4 },
+      { floor: 2, z: 8 },
+      { floor: 3, z: 12 },
+      { floor: 4, z: 16 }
+    ];
+    const elevatorPart = findByName(amfModel, 'ascensor_0');
+    elevatorPart.children.forEach(body => { body.material.opacity = 1; });
+    elevator = new Elevator(elevatorPart, floors);
+    elevator.animate()
 
-    // Define elevator animations
-    const goP1 = new TWEEN.Tween(elevator.position)
-      .to({ z: 12 }, 2000)
-      .easing(TWEEN.Easing.Quadratic.InOut);
-    const goP2 = new TWEEN.Tween(elevator.position)
-      .to({ z: 8 }, 2000)
-      .easing(TWEEN.Easing.Quadratic.InOut);
-    const goP3 = new TWEEN.Tween(elevator.position)
-      .to({ z: 16.1 }, 2000)
-      .easing(TWEEN.Easing.Quadratic.InOut);
-    const goP0 = new TWEEN.Tween(elevator.position)
-      .to({ z: 0 }, 2000)
-      .easing(TWEEN.Easing.Quadratic.InOut)
-      .start();
+    // Group parts by floor
+    floorElementList = initFloorGroups(amfModel);
 
-    // Chain elevator animations in infinite loop
-    goP0.chain(goP1);
-    goP1.chain(goP2);
-    goP2.chain(goP3);
-    goP3.chain(goP0);
+    const floor3 = findByFloor(amfModel, 3);
+    floor3.forEach(
+      part => part.children.forEach(
+        body => body.material.opacity = 1))
+
+    // Animate a floor
+    let targetFloor = floors[Math.floor(Math.random() * floors.length)].floor
+    setTimeout(() => { animateFloor(amfModel, targetFloor, true) }, 5000);
+    setTimeout(() => { animateFloor(amfModel, targetFloor, false) }, 60000);
   });
 }
 
@@ -286,6 +317,18 @@ function findByRegex(amfModel, expression) {
   return amfModel.children.filter(it => expression.test(it.name));
 }
 
+function findByFloor(amfModel, floor) {
+  const regex = floor >= 0 ? /_(\d)/ : /_N(\d)/
+  return amfModel.children.filter(it => {
+    const match = it.name.match(regex)
+    if (match) {
+      const partFloor = match.pop()
+      return partFloor == Math.abs(floor)
+    }
+    return false
+  });
+}
+
 function loadMetrics(amfModel, sensor) {
   let metricIds = amfModel.objects.map(obj => obj.sensors[sensor]);
   return metricsService.current(metricIds);
@@ -293,14 +336,8 @@ function loadMetrics(amfModel, sensor) {
 
 function colorUsingSensor(model, amfModel, sensor) {
   loadMetrics(model, sensor).then(
-    metrics => {
-      console.log(`Loaded metrics: ${JSON.stringify(metrics)}`);
-      applyMetrics(model, amfModel, sensor, metrics);
-    },
-    err => {
-      console.error(`Error loading current metrics: ${err.data.message}`);
-    }
-  );
+    metrics => applyMetrics(model, amfModel, sensor, metrics),
+    err => console.error(`Error loading current metrics: ${err.data.message}`));
 }
 
 function applyMetrics(model, amfModel, sensor, metrics) {
@@ -325,6 +362,129 @@ function metricToColor(sensor, value, min, max) {
     return new THREE.Color(parseInt(color, 16));
   }
   return defaultColor;
+}
+
+function animateFloor(amfModel, floor, push) {
+  if (push)
+    storeAnimationProperties(amfModel)
+
+  const SHIFT_DURATION = 5000;
+  const DISTANCE = 50;
+  const DELAY_SPACING = 750;
+
+  const topGroups = floorElementList.filter(it => it.floor > floor);
+  const botGroups = floorElementList.filter(it => it.floor < floor);
+
+  const maxDist = Math.max(topGroups.length, botGroups.length);
+  const opacityDelayOffset = push ? 0 : SHIFT_DURATION / 2;
+
+  // Animate parts on floors on top of target
+  const topShift = (push ? '+' : '-') + DISTANCE;
+  topGroups.forEach(group => {
+    const floorDelay = DELAY_SPACING * (push ?
+      maxDist - Math.abs(group.floor - floor) :
+      Math.abs(group.floor - floor) - 1);
+    console.log(`Animating top floor=${group.floor} delay=${floorDelay}`);
+    group.items.forEach(part => {
+      const originalprop = originalProperties.filter(it => it.name == part.name).pop();
+      const opacityTarget = push ? 0 : originalprop.opacity;
+
+      // Animate z-offset
+      new TWEEN.Tween(part.position)
+        .to({ z: topShift }, SHIFT_DURATION)
+        .easing(TWEEN.Easing.Quadratic.InOut)
+        .delay(floorDelay)
+        .start();
+      // Animate opacity
+      part.children.forEach(body => {
+        new TWEEN.Tween(body.material)
+          .to({ opacity: opacityTarget }, SHIFT_DURATION / 2)
+          .easing(TWEEN.Easing.Quadratic.InOut)
+          .delay(floorDelay + opacityDelayOffset)
+          .start();
+      });
+    });
+  });
+
+  // Animate parts on floors below target
+  const botShift = (push ? '-' : '+') + DISTANCE;
+  botGroups.forEach(group => {
+    const floorDelay = DELAY_SPACING * (push ?
+      maxDist - Math.abs(group.floor - floor) :
+      Math.abs(group.floor - floor) - 1);
+    console.log(`Animating bot floor=${group.floor} delay=${floorDelay}`);
+    group.items.forEach(part => {
+      const originalprop = originalProperties.filter(it => it.name == part.name).pop();
+      const opacityTarget = push ? 0 : originalprop.opacity;
+
+      // Animate z-offset
+      new TWEEN.Tween(part.position)
+        .to({ z: botShift }, SHIFT_DURATION)
+        .easing(TWEEN.Easing.Quadratic.InOut)
+        .delay(floorDelay)
+        .start();
+      // Animate opacity
+      part.children.forEach(body => {
+        new TWEEN.Tween(body.material)
+          .to({ opacity: opacityTarget }, SHIFT_DURATION / 2)
+          .easing(TWEEN.Easing.Quadratic.InOut)
+          .delay(floorDelay + opacityDelayOffset)
+          .start();
+      });
+    });
+  });
+
+  // Animate camera
+  const yTarget = push ? floorHeight * (floor - 1) : 0;
+  const xTarget = push ? -3.5 : 0;
+  const zTarget = push ? -buildingZ / 4 : 0;
+
+  if (floor > 2) {
+    new TWEEN.Tween(cameraOffset)
+      .to({ y: yTarget, x: xTarget, z: zTarget }, SHIFT_DURATION)
+      .start();
+  } else {
+    new TWEEN.Tween(cameraOffset)
+      .to({ y: yTarget }, SHIFT_DURATION)
+      .start();
+  }
+
+  // Animate camera target
+  if (floor > 2) {
+    new TWEEN.Tween(cameraTargetOffset)
+      .to({ y: yTarget, z: zTarget, x: xTarget }, SHIFT_DURATION)
+      .start();
+  } else {
+    new TWEEN.Tween(cameraTargetOffset)
+      .to({ y: yTarget }, SHIFT_DURATION)
+      .start();
+  }
+}
+
+function storeAnimationProperties(model) {
+  originalProperties = model.children
+    .map(part => {
+      if (part.children) {
+        return {
+          name: part.name,
+          opacity: part.children.length > 0 ? part.children[0].material.opacity : DEFAULT_OPACITY
+        }
+      } else {
+        return undefined
+      }
+    })
+    .filter(it => it != undefined);
+  console.log(originalProperties)
+}
+
+function initFloorGroups(amfModel) {
+  const PN1 = { floor: -1, items: findByFloor(amfModel, -1) };
+  const P0 = { floor: 0, items: findByFloor(amfModel, 0) };
+  const P1 = { floor: 1, items: findByFloor(amfModel, 1) };
+  const P2 = { floor: 2, items: findByFloor(amfModel, 2) };
+  const P3 = { floor: 3, items: findByFloor(amfModel, 3) };
+  const P4 = { floor: 4, items: findByFloor(amfModel, 4) };
+  return [PN1, P0, P1, P2, P3, P4];
 }
 
 Building.prototype.controller.$inject = ['Metrics', 'Colors'];
