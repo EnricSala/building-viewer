@@ -168,10 +168,11 @@ THREE.AMFLoader.prototype = {
 
       }
 
-      loadedMaterial = new THREE.MeshPhongMaterial({
-        shading: THREE.FlatShading,
+      loadedMaterial = new THREE.MeshLambertMaterial({
         color: new THREE.Color(color.r, color.g, color.b),
-        name: matName
+        name: matName,
+        side: THREE.DoubleSide,
+        shading: THREE.SmoothShading
       });
 
       if (color.a !== 1.0) {
@@ -418,7 +419,11 @@ THREE.AMFLoader.prototype = {
     }
 
     var sceneObject = new THREE.Group();
-    var defaultMaterial = new THREE.MeshPhongMaterial({ color: 0xaaaaff, shading: THREE.FlatShading });
+    var defaultMaterial = new THREE.MeshLambertMaterial({
+      color: 0xaaaaff,
+      side: THREE.DoubleSide,
+      shading: THREE.SmoothShading
+    });
 
     sceneObject.name = amfName;
     sceneObject.userData.author = amfAuthor;
