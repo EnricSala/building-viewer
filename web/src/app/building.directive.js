@@ -33,11 +33,15 @@ class Building {
 let metricsService, colorsService;
 let camera, scene, renderer;
 let dirLight, hemiLight;
+
 let sky, sunSphere;
 
 const buildingX = 29.8 * 2;
 const buildingZ = 17.5 * 2;
 const floorHeight = 4;
+
+const SUN_DISTANCE = 500;
+const SUN_RADIUS = 50;
 
 const cameraTarget = new THREE.Vector3(buildingX / 2, 12, -buildingZ / 2);
 let cameraDistance = 60;
@@ -52,8 +56,9 @@ const platformColor = new THREE.Color(0.7, 0.6, 0.5);
 const blueStructureColor = new THREE.Color(0.5, 0.6, 0.8);
 
 // Sample coordinates to calculate Sun position
-const SUN_LAT = 41.562533;
-const SUN_LNG = 2.020699;
+const BUILDING_LAT = 41.562533;
+const BUILDING_LNG = 2.020699;
+const BUILDING_ORIENTATION = 17.042 * Math.PI / 180;
 
 // Element groups by floor
 let floorElementList;
@@ -75,28 +80,33 @@ function init(element) {
   camera.up.set(0, 1, 0);
   scene.add(camera);
 
+  // Ambient light
+  const ambientLight = new THREE.AmbientLight(0x404050, 0.15);
+  scene.add(ambientLight);
+
   // Hemisphere light
-  hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.4);
+  hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.2);
   hemiLight.color.setRGB(0.1, 0.1, 0.1);
   hemiLight.groundColor.setRGB(1, 1, 1);
-  hemiLight.position.set(0, 0, 0);
+  hemiLight.position.set(0, 0, 0); // canviat de (0,0,0) --> (0,50,0)
   scene.add(hemiLight);
 
-  // Sunlight
+  // Sun light
   dirLight = new THREE.DirectionalLight(0xffffff, 1);
   dirLight.color.setRGB(1, 1, 1); // (0.21, 1, 0.8)
-  dirLight.position.set(0, -1, 0);
-  dirLight.position.multiplyScalar(50);
+  dirLight.position.set(1, 1, 2);
+  dirLight.position.multiplyScalar(100);
   dirLight.castShadow = true;
-  dirLight.shadowMapWidth = 2048;
-  dirLight.shadowMapHeight = 2048;
-  let d = 50;
-  dirLight.shadowCameraLeft = -d;
-  dirLight.shadowCameraRight = d;
-  dirLight.shadowCameraTop = d;
-  dirLight.shadowCameraBottom = -d;
+  dirLight.shadowMapWidth = 2048 * 2;
+  dirLight.shadowMapHeight = 2048 * 2;
+  let d = buildingX * 1.5;
+  dirLight.shadowCameraLeft = -d + buildingX / 2;
+  dirLight.shadowCameraRight = d + buildingX / 2;
+  dirLight.shadowCameraTop = d + buildingZ / 2;
+  dirLight.shadowCameraBottom = -d + buildingZ / 2;
   dirLight.shadowCameraFar = 300;
-  dirLight.shadowBias = -0.0001;
+  dirLight.shadowBias = -0.001;
+  dirLight.shadowDarkness = 1;
   dirLight.shadowCameraVisible = true;
   scene.add(dirLight);
 
@@ -105,10 +115,15 @@ function init(element) {
   // renderer.setClearColor(scene.fog.color);
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.gammaInput = false;
-  renderer.gammaOutput = false;
+  renderer.gammaInput = true;
+  renderer.gammaOutput = true;
   renderer.shadowMap.enabled = true;
+  renderer.shadowMapCullFace = THREE.CullFaceBack;
   renderer.shadowMapSoft = true;
+  renderer.shadowMapType = THREE.PCFShadowMap;
+
+  scene.fog = new THREE.Fog(0x222233, 0, 120);
+  renderer.setClearColor(scene.fog.color, 1);
 
   // Init Sky Shader
   initSky();
@@ -124,77 +139,93 @@ function initSky() {
 
   // Add Sun Helper
   sunSphere = new THREE.Mesh(
-    new THREE.SphereBufferGeometry(20000, 16, 8),
+    new THREE.SphereBufferGeometry(SUN_RADIUS, 16, 8),
     new THREE.MeshBasicMaterial({ color: 0xffffff })
   );
-  sunSphere.position.y = -700000;
+  sunSphere.position.y = 0;
   sunSphere.visible = false;
   scene.add(sunSphere);
 
   // GUI
-  var effectController = {
+  const effectController = {
     turbidity: 10,
     reileigh: 2,
     mieCoefficient: 0.005,
     mieDirectionalG: 0.8,
     luminance: 1,
-    inclination: 0.1, // elevation / inclination
-    azimuth: 0.2, // Facing front
-    sun: true
+    inclination: 45,
+    azimuth: 30,
+    sun: false,
   };
-  var distance = 400000;
 
   function guiChanged() {
-    var uniforms = sky.uniforms;
+    const uniforms = sky.uniforms;
     uniforms.turbidity.value = effectController.turbidity;
     uniforms.reileigh.value = effectController.reileigh;
     uniforms.luminance.value = effectController.luminance;
     uniforms.mieCoefficient.value = effectController.mieCoefficient;
     uniforms.mieDirectionalG.value = effectController.mieDirectionalG;
-    var theta = Math.PI * (effectController.inclination - 0.5);
-    var phi = 2 * Math.PI * (effectController.azimuth - 0.5);
-
-    updateSkyPosition(theta, phi);
-    updateSunlight();
-  }
-
-  function updateSkyPosition(phi, theta) {
-    sunSphere.position.x = distance * Math.cos(phi);
-    sunSphere.position.y = distance * Math.sin(phi) * Math.sin(theta);
-    sunSphere.position.z = distance * Math.sin(phi) * Math.cos(theta);
     sunSphere.visible = effectController.sun;
-    sky.uniforms.sunPosition.value.copy(sunSphere.position);
+
+    const inclination = effectController.inclination * Math.PI / 180;
+    const azimuth = effectController.azimuth * Math.PI / 180;
+    // console.log(`Sun alt/azi is: ${inclination} / ${azimuth}`);
+
+    const position = sunPositionFrom(inclination, azimuth);
+    updateSky(position);
   }
 
-  function updateSunlight() {
-    let x, y, z;
-    x = sunSphere.position.x - cameraTarget.x;
-    y = sunSphere.position.y - cameraTarget.y;
-    z = sunSphere.position.z - cameraTarget.z;
-    let mod = Math.sqrt(x * x + y * y + z * z);
-    dirLight.position.set(x / mod, y / mod, z / mod);
+  function updateSky({ x, y, z }) {
+    const R = Math.sqrt(x * x + y * y + z * z);
+    console.log(`Sun: x: ${Math.round(x)}, z: ${Math.round(z)}, y: ${Math.round(y)}, R: ${Math.round(R)}`);
+
+    // Update Sun position
+    sunSphere.position.x = x;
+    sunSphere.position.y = y;
+    sunSphere.position.z = z;
+
+    // Update Sky position
+    sky.uniforms.sunPosition.value.x = x;
+    sky.uniforms.sunPosition.value.y = y;
+    sky.uniforms.sunPosition.value.z = z;
+
+    // Update Sun Light
+    const dx = x - cameraTarget.x;
+    const dy = y - cameraTarget.y;
+    const dz = z - cameraTarget.z;
+    const mod = Math.sqrt(dx * dx + dy * dy + dz * dz) / 80;
+    dirLight.position.set(dx / mod, dy / mod, dz / mod);
+    dirLight.intensity = y / R;
   }
 
-  var gui = new dat.GUI();
+  function calcSunPosition(time) {
+    const position = SunCalc.getPosition(time, BUILDING_LAT, BUILDING_LNG);
+    return sunPositionFrom(position.altitude, position.azimuth);
+  }
+
+  function sunPositionFrom(inclination, azimuth) {
+    return {
+      y: SUN_DISTANCE * Math.sin(inclination),
+      x: -SUN_DISTANCE * Math.cos(azimuth + BUILDING_ORIENTATION) * Math.cos(inclination),
+      z: SUN_DISTANCE * Math.sin(azimuth + BUILDING_ORIENTATION) * Math.cos(inclination)
+    }
+  }
+
+  const gui = new dat.GUI();
   gui.close();
   gui.add(effectController, "turbidity", 1.0, 20.0, 0.1).onChange(guiChanged);
   gui.add(effectController, "reileigh", 0.0, 4, 0.001).onChange(guiChanged);
   gui.add(effectController, "mieCoefficient", 0.0, 0.1, 0.001).onChange(guiChanged);
   gui.add(effectController, "mieDirectionalG", 0.0, 1, 0.001).onChange(guiChanged);
   gui.add(effectController, "luminance", 0.0, 2).onChange(guiChanged);
-  gui.add(effectController, "inclination", 0, 1, 0.0001).onChange(guiChanged);
-  gui.add(effectController, "azimuth", 0, 1, 0.0001).onChange(guiChanged);
+  gui.add(effectController, "inclination", 0, 180, 0.1).onChange(guiChanged);
+  gui.add(effectController, "azimuth", 0, 180, 0.1).onChange(guiChanged);
   gui.add(effectController, "sun").onChange(guiChanged);
   guiChanged();
 
   // Update sun position
-  const time = new Date();
-  const sunPosition = SunCalc.getPosition(time, SUN_LAT, SUN_LNG);
-  const inclination = sunPosition.altitude;
-  const azimuth = sunPosition.azimuth + Math.PI / 2;
-  console.log(`Sun incl/az is: ${inclination} / ${azimuth}`);
-  updateSkyPosition(inclination, azimuth);
-  updateSunlight();
+  const position = calcSunPosition(new Date());
+  updateSky(position);
 }
 
 function animate() {
@@ -233,7 +264,7 @@ function drawModel(model) {
     amfModel.rotation.x = -Math.PI / 2;
     scene.add(amfModel);
 
-    // Configure default colors
+    // Configure defaults
     amfModel.children.forEach(part => {
       part.children.forEach(body => {
         body.material.transparent = true;
@@ -247,6 +278,7 @@ function drawModel(model) {
     base.children.forEach(body => {
       body.material.opacity = 1;
       body.material.color.set(platformColor);
+      body.receiveShadow = true;
     });
 
     // Configure the structure
@@ -255,6 +287,19 @@ function drawModel(model) {
       part.children.forEach(body => {
         body.material.opacity = 1;
         body.material.color.set(structureColor);
+        body.castShadow = true;
+        body.receiveShadow = true;
+      });
+    });
+
+    // Configure the walls
+    const walls = findByRegex(amfModel, /^tancaments_/);
+    walls.forEach(part => {
+      part.children.forEach(body => {
+        body.material.opacity = 1;
+        body.material.color.set(structureColor);
+        body.castShadow = true;
+        body.receiveShadow = true;
       });
     });
 
@@ -280,6 +325,10 @@ function drawModel(model) {
     // Use metrics to color parts of the model
     colorUsingSensor(model, amfModel, 'temperature');
     colorUsingSensor(model, amfModel, 'solar');
+    colorUsingSensor(model, amfModel, 'enable');
+    colorUsingSensor(model, amfModel, 'cooling');
+    colorUsingSensor(model, amfModel, 'heating');
+    colorUsingSensor(model, amfModel, 'heatTransfer');
 
     // Configure the elevator
     const floors = [
@@ -300,12 +349,12 @@ function drawModel(model) {
     const floor3 = findByFloor(amfModel, 3);
     floor3.forEach(
       part => part.children.forEach(
-        body => body.material.opacity = 1))
+        body => body.material.opacity = 1));
 
     // Animate a floor
-    let targetFloor = floors[Math.floor(Math.random() * floors.length)].floor
-    setTimeout(() => { animateFloor(amfModel, targetFloor, true) }, 5000);
-    setTimeout(() => { animateFloor(amfModel, targetFloor, false) }, 60000);
+    let targetFloor = floors[Math.floor(Math.random() * floors.length)].floor;
+    setTimeout(() => { animateFloor(amfModel, targetFloor, true) }, 20000);
+    setTimeout(() => { animateFloor(amfModel, targetFloor, false) }, 40000);
   });
 }
 
@@ -366,10 +415,10 @@ function metricToColor(sensor, value, min, max) {
 
 function animateFloor(amfModel, floor, push) {
   if (push)
-    storeAnimationProperties(amfModel)
+    storeAnimationProperties(amfModel);
 
-  const SHIFT_DURATION = 5000;
-  const DISTANCE = 50;
+  const SHIFT_DURATION = 4000;
+  const DISTANCE = 20;
   const DELAY_SPACING = 750;
 
   const topGroups = floorElementList.filter(it => it.floor > floor);
