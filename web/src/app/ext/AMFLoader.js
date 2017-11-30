@@ -493,7 +493,20 @@ THREE.AMFLoader.prototype = {
           }
 
           newGeometry.scale(amfScale, amfScale, amfScale);
-          newObject.add(new THREE.Mesh(newGeometry, material.clone()));
+          const mesh = new THREE.Mesh(newGeometry, material.clone());
+
+          mesh.material.polygonOffset = true;
+          mesh.material.polygonOffsetFactor = 1;
+          mesh.material.polygonOffsetUnits = 1;
+
+          var geo = new THREE.EdgesGeometry(mesh.geometry);
+          var mat = new THREE.LineBasicMaterial({ color: 0, linewidth: 0.5 });
+          var wireframe = new THREE.LineSegments(geo, mat);
+          mesh.add(wireframe);
+
+          newObject.add(mesh);
+
+          newGeometry.computeVertexNormals();
 
         }
 
